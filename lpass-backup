@@ -1,3 +1,17 @@
+#!/usr/bin/env python
+
+"""
+Script to download an encrypted backup of a LastPass vault.
+Requires human interaction.
+
+Vaults are encrypted with AES256 using GPG.
+Licensed under the MIT license
+
+Usage: lpass_backup <EMAIL> [<OUTFILE>]
+"""
+
+__author__ = 'laharah'
+
 import os
 from subprocess import Popen
 import pynentry
@@ -42,7 +56,7 @@ def export(session):
     p.stdin.write(session.passwd.encode('utf8'))
     p.stdin.flush()
     p.stdin.close()
-    print('Reading Vault Stream from LastPass...')
+    print('Reading vault stream from LastPass...')
     return p.stdout
 
 
@@ -62,9 +76,14 @@ def encrypt(data_stream, filename, lp):
 
 
 if __name__ == '__main__':
-    filename = 'temp'
+    import docopt
+
+    arguments = docopt.docopt(__doc__)
+    user = arguments['<EMAIL>']
+    filename = arguments['<OUTFILE>'] or 'lp_bkp.csv.gpg'
+
     try:
-        with LP_Session('laharah22@gmail.com') as lp:
+        with LP_Session(user) as lp:
             csv = export(lp)
             encrypt(csv, filename, lp)
 
