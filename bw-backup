@@ -42,7 +42,7 @@ class BW_Session:
             f"bw login {self.user} --raw".split(), stdin=-1, stdout=-1, stderr=-3
         )
         session_key, err = lp.communicate(passwd.encode("utf8"), timeout=20)
-        self.env["BW_SESSION"] = session_key.strip()
+        self.env["BW_SESSION"] = session_key.strip().decode("utf8")
         try:
             assert not err
         except AssertionError:
