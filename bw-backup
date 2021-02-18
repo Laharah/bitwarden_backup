@@ -1,0 +1,158 @@
+#!/usr/bin/env python
+
+"""
+Script to download an encrypted backup of a LastPass vault.
+Requires human interaction.
+
+Vaults are encrypted with AES256 using GPG.
+Licensed under the MIT license
+
+Usage: lpass_backup <EMAIL> [<OUTFILE>]
+"""
+
+__author__ = "laharah"
+
+import os
+from subprocess import Popen
+import pynentry
+import re
+from io import BytesIO
+import tarfile
+import time
+import json
+from contextlib import contextmanager
+
+
+class BW_Session:
+    def __init__(self, user):
+        self.user = user
+        self.passwd = ""
+
+    def __enter__(self):
+        p = pynentry.PynEntry()
+        p.description = "Enter your BitWarden Password"
+        p.prompt = ">"
+        passwd = p.get_pin()
+        passwd = passwd + "\n"
+        self.passwd = passwd
+        env = os.environ.copy()
+        self.env = env
+        print("Logging in...")
+        lp = Popen(
+            f"bw login {self.user} --raw".split(), stdin=-1, stdout=-1, stderr=-3
+        )
+        session_key, err = lp.communicate(passwd.encode("utf8"), timeout=20)
+        self.env["BW_SESSION"] = session_key.strip()
+        try:
+            assert not err
+        except AssertionError:
+            print(err)
+            raise ValueError("Incorrect Password")
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        del self.passwd
+        del self.env
+        print("Closing BitWarden session...")
+        with Popen(["bw", "logout"], stdout=-1, stderr=-1) as lp:
+            ans = lp.communicate(timeout=5)
+
+
+def get_vault_data(session):
+    p = Popen(
+        ["bw", "export", "--format", "json", "--raw"],
+        stdin=-1,
+        stdout=-1,
+        stderr=-3,
+        env=session.env,
+    )
+    print("Reading vault stream from BitWarden...")
+    data, _ = p.communicate(session.passwd.encode("utf8"))
+    buff = BytesIO(data)
+    buff.seek(0)
+    ti = tarfile.TarInfo()
+    ti.name = "bitwarden_backup/bitwarden_vault.json"
+    ti.size = len(buff.getbuffer())
+    ti.mtime = int(time.time())
+    return ti, buff
+
+
+def attachements(session):
+    p = Popen(["bw", "list", "items"], stdout=-1, env=session.env)
+    data, _ = p.communicate()
+    data = json.loads(data)
+    for item in data:
+        if "attachments" in item:
+            for at in item["attachments"]:
+                ti = tarfile.TarInfo()
+                ti.name = f"bitwarden_backup/{item['id']}/{at['fileName']}"
+                ti.mtime = int(time.time())
+                p = Popen(
+                    [
+                        "bw",
+                        "get",
+                        "attachment",
+                        at["id"],
+                        "--itemid",
+                        item["id"],
+                        "--raw",
+                    ],
+                    stdout=-1,
+                    stderr=-3,
+                    env=session.env,
+                )
+                data, _ = p.communicate()
+                ti.size = len(data)
+                buff = BytesIO(data)
+                buff.seek(0)
+                yield ti, buff
+
+
+@contextmanager
+def encrypted_file_stream(filename, bw_session):
+    output = open(filename, "wb")
+    in_fd, out_fd = os.pipe()
+    args = (
+        f"gpg -c --cipher-algo AES256 --batch --armor --passphrase-fd {in_fd}".split()
+    )
+    gpg = Popen(args, stdin=-1, stdout=output, stderr=-3, pass_fds=[in_fd])
+    os.close(in_fd)
+    print("Encrypting with AES256...")
+    with open(out_fd, "w") as of:
+        of.write(bw_session.passwd)
+    print(f"Writing data to {filename}...")
+    try:
+        yield gpg.stdin
+    except:
+        print("ENCRYPTION FAILED!!! Cleaning up")
+        gpg.kill()
+        output.close()
+        os.unlink(filename)
+        raise
+    print("Encryption finished...")
+
+
+if __name__ == "__main__":
+    import docopt
+
+    arguments = docopt.docopt(__doc__)
+    user = arguments["<EMAIL>"]
+    filename = arguments["<OUTFILE>"] or "bitwarden_bkp.tar.gpg"
+
+    try:
+        with BW_Session(user) as session, encrypted_file_stream(
+            filename, session
+        ) as crypt:
+            with tarfile.open(fileobj=crypt, mode="w|") as tar:
+                ti, vault = get_vault_data(session)
+                tar.addfile(ti, vault)
+                notice=False
+                for ti, a in attachements(session):
+                    if not notice:
+                        print("Downloading Attachments...")
+                    tar.addfile(ti, a)
+
+    except ValueError:
+        print("Incorrect Password!")
+    else:
+        print("Success!")
