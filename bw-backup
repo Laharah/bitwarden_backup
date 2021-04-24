@@ -146,10 +146,11 @@ if __name__ == "__main__":
             with tarfile.open(fileobj=crypt, mode="w|") as tar:
                 ti, vault = get_vault_data(session)
                 tar.addfile(ti, vault)
-                notice=False
+                notice = False
                 for ti, a in attachements(session):
                     if not notice:
                         print("Downloading Attachments...")
+                        notice = True
                     tar.addfile(ti, a)
 
     except ValueError:
