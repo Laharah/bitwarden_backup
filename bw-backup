@@ -68,6 +68,8 @@ def get_vault_data(session):
     )
     print("Reading vault stream from BitWarden...")
     data, _ = p.communicate(session.passwd.encode("utf8"))
+    if not data:
+        raise ValueError("Incorrect Password!")
     buff = BytesIO(data)
     buff.seek(0)
     ti = tarfile.TarInfo()
@@ -140,11 +142,11 @@ if __name__ == "__main__":
     filename = arguments["<OUTFILE>"] or "bitwarden_bkp.tar.gpg"
 
     try:
-        with BW_Session(user) as session, encrypted_file_stream(
-            filename, session
-        ) as crypt:
-            with tarfile.open(fileobj=crypt, mode="w|") as tar:
-                ti, vault = get_vault_data(session)
+        with BW_Session(user) as session:
+            ti, vault = get_vault_data(session)
+            with encrypted_file_stream(filename, session) as crypt, tarfile.open(
+                fileobj=crypt, mode="w|"
+            ) as tar:
                 tar.addfile(ti, vault)
                 notice = False
                 for ti, a in attachements(session):
@@ -153,7 +155,9 @@ if __name__ == "__main__":
                         notice = True
                     tar.addfile(ti, a)
 
-    except ValueError:
-        print("Incorrect Password!")
-    else:
-        print("Success!")
+    except ValueError as e:
+        msg = " ".join(str(a) for a in e.args)
+        print(f"Error while Processing! {msg}")
+        exit(1)
+
+    print("Success!")
