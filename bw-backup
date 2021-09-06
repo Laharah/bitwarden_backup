@@ -29,10 +29,10 @@ class BW_Session:
         self.passwd = ""
 
     def __enter__(self):
-        p = pynentry.PynEntry()
-        p.description = "Enter your BitWarden Password"
-        p.prompt = ">"
-        passwd = p.get_pin()
+        with pynentry.PynEntry() as p:
+            p.description = "Enter your BitWarden Password"
+            p.prompt = ">"
+            passwd = p.get_pin()
         passwd = passwd + "\n"
         self.passwd = passwd
         env = os.environ.copy()
