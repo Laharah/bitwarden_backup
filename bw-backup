@@ -87,7 +87,7 @@ def attachements(session):
         if "attachments" in item:
             for at in item["attachments"]:
                 ti = tarfile.TarInfo()
-                ti.name = f"bitwarden_backup/{item['id']}/{at['fileName']}"
+                ti.name = f"bitwarden_backup/{item['name']}/{at['fileName']}"
                 ti.mtime = int(time.time())
                 p = Popen(
                     [
@@ -139,7 +139,8 @@ if __name__ == "__main__":
 
     arguments = docopt.docopt(__doc__)
     user = arguments["<EMAIL>"]
-    filename = arguments["<OUTFILE>"] or "bitwarden_bkp.tar.gpg"
+    cleaned_username = ''.join(user.split('.')[:-1]).replace('@', '_')
+    filename = arguments["<OUTFILE>"] or f"bitwarden_bkp_{cleaned_username}.tar.gpg"
 
     try:
         with BW_Session(user) as session:
