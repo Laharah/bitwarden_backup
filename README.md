@@ -9,6 +9,7 @@ Usage: `bw-backup <EMAIL> [<OUTFILE>]`
 * [gnugpg](https://gnupg.org/download/index.html#GnuPG)
 * [pinentry](https://gnupg.org/download/index.html#pinentry) 
 * [bitwarden CLI tool](https://bitwarden.com/help/article/cli/#download-and-install)
+* python 3.6+
 
 ### Example backup
 ```
