@@ -1,5 +1,5 @@
 # Bitwarden Backup
-Creates a GPG encrypted backup file of your Bitwarden vault along with any attachments.
+Creates a GPG encrypted (AES256) backup file of your Bitwarden vault along with any attachments.
 
 Installation: `pip install git+https://github.com/Laharah/bitwarden_backup.git`
 
@@ -21,4 +21,8 @@ bitwarden_backup.tar.gpg        # Encrypted with your BitWarden password
     └── openvpn_bkp.tar.gz.gpg
 ```
 
+### Example Decryption 
 
+To decrypt your Bitwarden vault run this command on any machine that has gpg installed:
+
+`gpg -d bitwarden_backup.tar.gpg | tar x`
